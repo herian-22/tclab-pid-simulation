@@ -14,8 +14,7 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 
-# Generated outputs
-results/
+
 
 # IDE
 .vscode/
