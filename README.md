@@ -1,124 +1,149 @@
 # TCLab PID Temperature Control Simulation (Ziegler-Nichols)
 
-Proyek simulasi kendali suhu closed-loop pada modul **Temperature Control Lab (TCLab)** berbasis Arduino. 
-Model matematis diidentifikasi menggunakan model orde satu dengan waktu tunda (**FOPDT: First Order Plus Dead Time**) langsung dari dataset eksperimen publik. Parameter kontroler PID dihitung secara analitik menggunakan metode **Ziegler-Nichols Open-Loop (Reaction Curve)** dilengkapi mekanisme **Anti-Windup Clamping**.
+## Brief
 
-![Sistem Overview](definisi-skematic.png)
+This project simulates a closed-loop PID temperature controller on the **Temperature Control Lab (TCLab)** Arduino-based module. Instead of tuning by hand or guessing parameters, the plant model was identified directly from real open-loop step-response data published by J. C. Kantor (University of Notre Dame). A **First-Order Plus Dead Time (FOPDT)** model was fitted to the dataset using least-squares optimization, and PID gains were then computed analytically using the **Ziegler-Nichols open-loop (reaction curve)** method. The controller includes **anti-windup clamping** to handle actuator saturation gracefully across multiple setpoint changes.
 
----
+![System Overview](definisi-skematic.png)
 
-## Struktur Direktori
-
-Struktur proyek dibuat minimalis, modular, dan terisolasi:
+## Project Structure
 
 ```
 tclab-pid-simulation/
-├── README.md               # Dokumentasi lengkap proyek
-├── requirements.txt        # Dependensi Python
+├── README.md               # Full project documentation
+├── requirements.txt        # Python dependencies
 ├── data/
 │   └── raw/
-│       └── tclab-data.csv  # Dataset uji step response TCLab (800 s, Q1=50%)
+│       └── tclab-data.csv  # Open-loop step response dataset (800 s, Q1=50%)
 ├── src/
-│   ├── model.py            # Identifikasi parameter FOPDT (K, tau, theta, T_amb)
-│   ├── tuning.py           # Perhitungan gain Ziegler-Nichols open-loop
-│   └── pid.py              # Kontroler PID diskrit + anti-windup clamping
-├── run_zn.py               # Script utama satu perintah untuk eksekusi pipeline
+│   ├── model.py            # FOPDT parameter identification (K, tau, theta, T_amb)
+│   ├── tuning.py           # Ziegler-Nichols open-loop gain calculation
+│   └── pid.py              # Discrete PID controller with anti-windup clamping
+├── run_zn.py               # Single-command pipeline script
 └── results/
-    └── zn_result.png       # Grafik hasil simulasi suhu dan daya pemanas
+    └── zn_result.png       # Simulation output plot (temperature + heater power)
 ```
 
----
+## How to Run
 
-## Panduan Penggunaan
-
-Cukup jalankan dua perintah berikut:
+Just two commands:
 
 ```bash
-# 1. Install dependensi
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Jalankan simulasi penuh
+# 2. Run the full simulation
 python run_zn.py
 ```
 
-Skrip `run_zn.py` secara otomatis menjalankan seluruh tahapan:
-1. Membaca `data/raw/tclab-data.csv` dan fitting kurva least-squares FOPDT.
-2. Menghitung gain PID $K_p, K_i, K_d$ berdasarkan aturan tuning Ziegler-Nichols.
-3. Mensimulasikan sistem closed-loop dengan 3 setpoint bertahap (masing-masing 400 detik).
-4. Menghitung metrik performa (*Rise Time*, *Settling Time*, *Overshoot*, *SSE*).
-5. Menyimpan grafik visualisasi ke `results/zn_result.png`.
+`run_zn.py` handles the entire pipeline automatically:
+1. Reads `data/raw/tclab-data.csv` and fits the FOPDT model via least-squares.
+2. Computes PID gains $K_p, K_i, K_d$ using Ziegler-Nichols tuning rules.
+3. Simulates the closed-loop system across 3 sequential setpoints (400 seconds each).
+4. Calculates performance metrics (Rise Time, Settling Time, Overshoot, SSE).
+5. Saves the result plot to `results/zn_result.png`.
 
----
+## 1. System Identification (FOPDT)
 
-## 1. Identifikasi Sistem (FOPDT)
+The reference dataset comes from a real open-loop step-response experiment (heater power fixed at $Q_1 = 50\%$ for 800 seconds):
 
-Dataset referensi diperoleh dari eksperimen nyata open-loop step response (daya pemanas $Q_1 = 50\%$ konstan selama 800 detik):
-- **Sumber**: [J. C. Kantor, University of Notre Dame](https://jckantor.github.io/CBE32338/data/tclab-data.csv)
+**Source:** [J. C. Kantor, University of Notre Dame](https://jckantor.github.io/CBE32338/data/tclab-data.csv)
 
-### Model Matematis
-Model transfer function pendekatan FOPDT:
+### Mathematical Model
+
+FOPDT transfer function approximation:
 $$G(s) = \frac{K}{\tau s + 1} e^{-\theta s}$$
 
-Bentuk domain waktu terhadap step input $Q$:
-$$T(t) = T_{\text{amb}} + K \cdot Q \cdot \left(1 - e^{-(t - \theta)/\tau}\right) \quad \text{untuk } t \ge \theta$$
+Time-domain response to a step input $Q$:
+$$T(t) = T_{\text{amb}} + K \cdot Q \cdot \left(1 - e^{-(t - \theta)/\tau}\right) \quad \text{for } t \ge \theta$$
 
-### Hasil Estimasi Parameter:
-| Parameter | Nilai Hasil Fit | Satuan | Deskripsi Fisik |
-|---|---|---|---|
-| **K** | **0.6228** | °C/% | *Process Gain* (kenaikan suhu per 1% daya pemanas) |
-| **τ** | **167.8** | detik | *Time Constant* (kecepatan respon termal mencapai 63.2%) |
-| **θ** | **20.2** | detik | *Dead Time / Transport Delay* (jeda konduksi panas ke sensor) |
-| **$T_{\text{amb}}$** | **23.81** | °C | Suhu lingkungan awal saat pengujian |
-| **RMSE** | **0.222** | °C | Standar deviasi galat fitting terhadap data riil |
+### Fitted Parameter Results
 
-> **Catatan Analisis**: Dead time $\theta = 20.2\text{ s}$ merepresentasikan jarak fisik antara transistor pemanas (TIP31C) dan sensor suhu (TMP36). Keberadaan dead time ini menjadi faktor kritis pembatas kestabilan sistem termal.
+| Parameter | Fitted Value | Unit | Physical Meaning |
+|-----------|-------------|------|-----------------|
+| **K** | **0.6228** | °C/% | Process gain (temperature rise per 1% heater power) |
+| **τ** | **167.8** | s | Time constant (speed of thermal response to reach 63.2%) |
+| **θ** | **20.2** | s | Dead time / transport delay (heat conduction lag to sensor) |
+| **$T_{\text{amb}}$** | **23.81** | °C | Ambient temperature at the time of the experiment |
+| **RMSE** | **0.222** | °C | Fit error standard deviation against real data |
 
----
+> The dead time $\theta = 20.2\text{ s}$ reflects the physical distance between the TIP31C heater transistor and the TMP36 temperature sensor. This is the main stability-limiting factor for this thermal plant — increasing it even modestly causes the system to oscillate under the same gains.
 
-## 2. Perancangan Kontroler (Ziegler-Nichols Tuning)
+## 2. Controller Design (Ziegler-Nichols Tuning)
 
-Metode tuning kurva reaksi terbuka (Ziegler & Nichols, 1942) untuk kontroler PID tipe ideal/paralel:
+Open-loop reaction curve method (Ziegler & Nichols, 1942) for an ideal/parallel PID structure:
 
-| Parameter Gain | Rumus Ziegler-Nichols | Nilai Terhitung |
-|---|---|---|
+| Gain Parameter | Ziegler-Nichols Formula | Computed Value |
+|---------------|------------------------|---------------|
 | **$K_p$** | $\frac{1.2 \cdot \tau}{K \cdot \theta} = \frac{1.2 \cdot 167.8}{0.6228 \cdot 20.2}$ | **16.02** |
-| **$T_i$** (Waktu Integral) | $2.0 \cdot \theta = 2.0 \cdot 20.2$ | **40.4 detik** |
-| **$T_d$** (Waktu Derivatif) | $0.5 \cdot \theta = 0.5 \cdot 20.2$ | **10.1 detik** |
+| **$T_i$** (Integral time) | $2.0 \cdot \theta = 2.0 \cdot 20.2$ | **40.4 s** |
+| **$T_d$** (Derivative time) | $0.5 \cdot \theta = 0.5 \cdot 20.2$ | **10.1 s** |
 | **$K_i$** | $\frac{K_p}{T_i} = \frac{16.02}{40.4}$ | **0.397** |
 | **$K_d$** | $K_p \cdot T_d = 16.02 \cdot 10.1$ | **161.61** |
 
-### Algoritma PID & Anti-Windup Clamping
-Persamaan beda diskrit pada modul `src/pid.py`:
+### PID Algorithm and Anti-Windup Clamping
+
+Discrete difference equation implemented in `src/pid.py`:
 $$u[k] = K_p \cdot e[k] + K_i \sum e[j] \Delta t + K_d \frac{e[k] - e[k-1]}{\Delta t}$$
-- **Saturasi Aktuator**: Daya pemanas dibatasi pada rentang fisik $0 \le u \le 100\%$.
-- **Anti-Windup Clamping**: Akumulasi suku integral dibekukan (*freezed*) apabila sinyal kontrol mencapai batas saturasi dan arah error memperparah kondisi jenuh, mencegah lonjakan *recovery time* saat pergantian setpoint.
 
----
+- **Actuator saturation:** Heater power is physically constrained to $0 \le u \le 100\%$.
+- **Anti-windup clamping:** Integral accumulation is frozen whenever the control signal hits saturation and the error continues pushing in the same direction. This prevents sluggish windup recovery during setpoint transitions.
 
-## 3. Hasil Simulasi & Evaluasi Kinerja
+## 3. Simulation Results
 
-Skenario pengujian mengevaluasi respon pelacakan suhu pada **tiga setpoint** berurutan: **35°C**, **45°C**, dan **55°C** (masing-masing ditahan selama **400 detik**). Rentang ini dipilih karena berada dalam kapasitas fisik pemanas tanpa ekstrapolasi berlebih (pada daya 50%, suhu jenuh modul adalah ~55°C).
+The test scenario evaluates temperature tracking across **three sequential setpoints**: **35°C**, **45°C**, and **55°C** (each held for **400 seconds**). This range stays within the physical capacity of the heater without excessive extrapolation — at 50% power the module saturates around 55°C.
 
-### Tabel Metrik Kinerja:
-| Setpoint | Rentang Waktu | Rise Time (10%–90%) | Settling Time (kriteria 2%) | Overshoot | Steady-State Error ($e_{ss}$) |
-|---|---|---|---|---|---|
-| **35 °C** | $t = 50 - 450\text{ s}$ | **27 detik** | **138 detik** | **14.18%** | $+0.001\text{ °C}$ |
-| **45 °C** | $t = 450 - 850\text{ s}$ | **30 detik** | **140 detik** | **12.35%** | $+0.000\text{ °C}$ |
-| **55 °C** | $t = 850 - 1250\text{ s}$ | **38 detik** | **147 detik** | **8.86%** | $+0.000\text{ °C}$ |
+### Terminal Output (`python run_zn.py`)
 
-### Analisis Respon:
-1. **Karakteristik Ziegler-Nichols**: Metode ZN dikenal menghasilkan respons yang agresif. Overshoot sebesar ~8%–14% masih berada di bawah target desain teoritis ZN (~25%), menunjukkan redaman sistem termal yang baik.
-2. **Eliminasi Error Steady-State**: Aksi integral ($K_i$) berhasil meniadakan error tunak di seluruh rentang setpoint ($e_{ss} \approx 0.00\text{ °C}$).
-3. **Efisiensi Transisi**: Penerapan *anti-windup clamping* membuat waktu settling stabil di kisaran ~140 detik pada tiap kenaikan suhu 10°C tanpa terjadi fenomena *sluggish windup recovery*.
+```
+============================================================
+1. FOPDT MODEL IDENTIFICATION
+   K     = 0.6228 degC/%  (static gain)
+   tau   = 167.8 s       (time constant)
+   theta = 20.2 s      (dead time)
+   T_amb = 23.81 degC   (ambient temperature)
+   RMSE  = 0.222 degC   (fit accuracy)
+============================================================
 
----
+2. ZIEGLER-NICHOLS TUNING
+   Kp = 16.0159
+   Ki = 0.39680  (Ti = 40.4 s)
+   Kd = 161.610  (Td = 10.1 s)
+   Formula: Kp = 1.2*tau/(K*theta), Ti = 2*theta, Td = 0.5*theta
+============================================================
 
-## 4. Visualisasi Grafik & Perangkat Keras
+3. SIMULATION RESULTS
+        Setpoint   Rise time    Settling   Overshoot       SSE
+   SP=  35 degC        27 s       138 s     14.18%   +0.001
+   SP=  45 degC        30 s       140 s     12.35%   +0.000
+   SP=  55 degC        38 s       147 s      8.86%   +0.000
+============================================================
 
-### Hasil Simulasi Pelacakan Suhu (PID Ziegler-Nichols)
-![Grafik Respon ZN](results/zn_result.png)
+Plot saved: ...\results\zn_result.png
+Done.
+```
 
-### Modul Fisik dan Rangkaian Alat
-| Skema Wiring & Rangkaian | Foto Modul TCLab |
-|---|---|
-| ![Rangkaian](rangkaian.png) | ![Modul TCLab](alatnya.png) |
+### Performance Metrics
+
+| Setpoint | Time Window | Rise Time (10–90%) | Settling Time (2%) | Overshoot | Steady-State Error |
+|----------|-------------|-------------------|--------------------|-----------|-------------------|
+| **35 °C** | $t = 50 - 450\text{ s}$ | **27 s** | **138 s** | **14.18%** | $+0.001\text{ °C}$ |
+| **45 °C** | $t = 450 - 850\text{ s}$ | **30 s** | **140 s** | **12.35%** | $+0.000\text{ °C}$ |
+| **55 °C** | $t = 850 - 1250\text{ s}$ | **38 s** | **147 s** | **8.86%** | $+0.000\text{ °C}$ |
+
+### Response Analysis
+
+1. **Ziegler-Nichols characteristics:** ZN tuning is intentionally aggressive. The observed overshoot of 8–14% is actually below the theoretical ZN design target (~25%), which suggests the thermal system's natural damping is working in our favor.
+2. **Steady-state error elimination:** The integral term drives the steady-state error to essentially zero ($e_{ss} \approx 0.00\text{ °C}$) at all three setpoints.
+3. **Setpoint transition efficiency:** Anti-windup clamping keeps settling time stable around ~140 s per 10°C step without the sluggish windup recovery typical of unprotected integrators.
+
+## 4. Plots and Hardware
+
+### Simulation Result — ZN Step Response
+![ZN Simulation Result](results/zn_result.png)
+
+### Hardware and Wiring
+| Wiring Schematic | TCLab Module |
+|-----------------|-------------|
+| ![Schematic](rangkaian.png) | ![TCLab Module](alatnya.png) |
+
