@@ -1,33 +1,33 @@
-"""src/tuning.py — Perhitungan gain PID dengan metode Ziegler-Nichols Open-Loop.
+"""src/tuning.py — PID gain calculation using the Ziegler-Nichols Open-Loop method.
 
-Rumus Ziegler-Nichols (reaction-curve / open-loop method):
+Ziegler-Nichols formulas (reaction-curve / open-loop method):
     Kp = 1.2 * tau / (K * theta)
     Ti = 2 * theta          -> Ki = Kp / Ti
     Td = 0.5 * theta        -> Kd = Kp * Td
 
-Referensi: Ziegler & Nichols (1942), "Optimum Settings for Automatic Controllers".
+Reference: Ziegler & Nichols (1942), "Optimum Settings for Automatic Controllers".
 """
 
 
 def ziegler_nichols(K: float, tau: float, theta: float) -> dict:
-    """Hitung gain PID dari parameter FOPDT menggunakan Ziegler-Nichols.
+    """Compute PID gains from FOPDT parameters using Ziegler-Nichols.
 
-    Parameter
-    ---------
-    K     : Gain statis plant (degC / %)
-    tau   : Konstanta waktu (detik)
-    theta : Waktu tunda / dead time (detik)
+    Parameters
+    ----------
+    K     : Static plant gain (degC / %)
+    tau   : Time constant (seconds)
+    theta : Dead time / transport delay (seconds)
 
-    Return
-    ------
-    dict berisi Kp, Ki, Kd, Ti, Td
+    Returns
+    -------
+    dict containing Kp, Ki, Kd, Ti, Td
     """
     if theta <= 0:
-        raise ValueError("Ziegler-Nichols membutuhkan theta > 0 (waktu tunda tidak boleh nol).")
+        raise ValueError("Ziegler-Nichols requires theta > 0 (dead time cannot be zero).")
 
     Kp = 1.2 * tau / (K * theta)
-    Ti = 2.0 * theta          # waktu integral (s)
-    Td = 0.5 * theta          # waktu derivatif (s)
+    Ti = 2.0 * theta          # integral time (s)
+    Td = 0.5 * theta          # derivative time (s)
     Ki = Kp / Ti
     Kd = Kp * Td
 

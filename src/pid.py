@@ -1,10 +1,10 @@
-"""src/pid.py — Kontroler PID diskrit dengan anti-windup (clamping).
+"""src/pid.py — Discrete PID controller with anti-windup (clamping method).
 
-Persamaan:
+Equation:
     u[k] = Kp*e[k] + Ki*sum(e)*dt + Kd*(e[k]-e[k-1])/dt
 
-Anti-windup: akumulasi integral dihentikan saat aktuator jenuh
-dan error terus mendorong ke arah jenuh.
+Anti-windup: integral accumulation is paused when the actuator is saturated
+and the error continues pushing in the same saturation direction.
 """
 
 
@@ -19,30 +19,30 @@ class PID:
         self._prev_error = None
 
     def reset(self):
-        """Reset state integral dan error sebelumnya."""
+        """Reset integral state and previous error."""
         self.integral = 0.0
         self._prev_error = None
 
     def update(self, setpoint: float, measurement: float) -> float:
         error = setpoint - measurement
 
-        # Suku derivatif (tidak ada lonjakan pada langkah pertama)
+        # Derivative term (no derivative kick on the first step)
         if self._prev_error is None:
             derivative = 0.0
         else:
             derivative = (error - self._prev_error) / self.dt
         self._prev_error = error
 
-        # Hitung output mentah
+        # Compute raw output
         candidate_integral = self.integral + error * self.dt
         u_raw = (self.Kp * error
                  + self.Ki * candidate_integral
                  + self.Kd * derivative)
 
-        # Klamp ke batas aktuator
+        # Clamp to actuator limits
         u = min(max(u_raw, self.u_min), self.u_max)
 
-        # Anti-windup: update integral hanya jika tidak jenuh ke arah yang sama
+        # Anti-windup: only update integral if not saturated in the same direction
         saturated     = u != u_raw
         pushing_deeper = ((u_raw > self.u_max and error > 0) or
                           (u_raw < self.u_min and error < 0))
